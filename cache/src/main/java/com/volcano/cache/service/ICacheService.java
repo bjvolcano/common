@@ -1,7 +1,9 @@
 package com.volcano.cache.service;
 
 import com.alibaba.druid.util.JdbcConstants;
+import org.apache.ibatis.executor.Executor;
 
+import java.sql.SQLException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -34,9 +36,10 @@ public interface ICacheService {
      *
      * @param sql
      * @param argValues
+     * @param executor
      * @return
      */
-    Object getBySqlKey(String sql, Object argValues);
+    Object getBySqlKey(String sql,Object argValues,Executor executor) throws SQLException;
 
     /**
      * 放入缓存
@@ -81,17 +84,10 @@ public interface ICacheService {
      */
     String getKey();
 
-
     /**
      * 删除和sql中相关表的缓存
      */
     void remove();
-
-    /**
-     * 标识连接的事务状态
-     * @param isTranStatus
-     */
-    void setIsTran(Boolean isTranStatus);
 
     /**
      * 释放资源

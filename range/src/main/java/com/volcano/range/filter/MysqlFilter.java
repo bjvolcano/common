@@ -20,6 +20,7 @@ import com.volcano.range.mapping.Mapping;
 import com.volcano.range.mapping.SourceFromInfo;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -313,7 +314,7 @@ public class MysqlFilter {
 
         where.setOperator(SQLBinaryOperator.Equality);
 
-        //todo 设置 条件的值
+        //设置 条件的值
         //where.setRight(new SQLIntegerExpr(tenantId));
         return where;
     }
@@ -334,7 +335,7 @@ public class MysqlFilter {
 //
 //        where.setOperator(SQLBinaryOperator.Equality);
 //
-//        //todo 设置 条件的值
+//        // 设置 条件的值
 //        //where.setRight(new SQLIntegerExpr(tenantId));
         return null;
     }

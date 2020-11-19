@@ -1,5 +1,6 @@
 package com.volcano.cache.mybatis;
 
+import com.volcano.cache.entity.TransactionInfo;
 import com.volcano.cache.service.ICacheService;
 import com.alibaba.fastjson.JSON;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -51,10 +52,6 @@ public class QueryCacheInterceptor extends BaseInterceptor {
 
     @Override
     public Object intercept(Invocation invocation) throws Throwable {
-//        log.error(invocation.getClass().getName()+":"+invocation.getMethod().getName());
-//        if (invocation.getTarget() instanceof StatementHandler) {
-//            return dealCache(invocation);
-//        }
 
         if (invocation.getTarget() instanceof Executor)
             return dealCacheProceed(invocation);
@@ -63,43 +60,16 @@ public class QueryCacheInterceptor extends BaseInterceptor {
     }
 
 
-//    private Object dealCache(Invocation invocation) throws InvocationTargetException, IllegalAccessException {
-//        StatementHandler statementHandler = realTarget(invocation.getTarget());
-//        MetaObject metaObject = SystemMetaObject.forObject(statementHandler);
-//
-//        // 先判断是不是SELECT操作  (2019-04-10 00:37:31 跳过存储过程)
-//        MappedStatement mappedStatement = (MappedStatement) metaObject.getValue("delegate.mappedStatement");
-//
-//
-//        // 针对定义了rowBounds，做为mapper接口方法的参数
-//        BoundSql boundSql = (BoundSql) metaObject.getValue("delegate.boundSql");
-//        String format = getSql(mappedStatement.getConfiguration(), boundSql);
-//
-//        // 改变sql语句
-//
-//        Object result = cacheService.getBySqlKey(format, null);
-//        //todo 查询缓存
-//        if (result == null) {
-//            result = invocation.proceed();
-//            if (result != null) {
-//                cacheService.put(result, Math.abs(cacheService.EXPIRE - random.nextInt(120)), TimeUnit.SECONDS);
-//            }
-//        } else {
-//            log.info("走缓存直接返回\nsql:{}\nkey:{},value:{}", format, cacheService.getKey(), JSON.toJSONString(result));
-//        }
-//        return result;
-//    }
-
-
     private Object dealCacheProceed(Invocation invocation) throws InvocationTargetException, IllegalAccessException, SQLException {
+        Executor executor=realTarget(invocation.getTarget());
         MappedStatement mappedStatement = (MappedStatement) invocation.getArgs()[0];
         Object args = invocation.getArgs()[1];
         BoundSql boundSql = mappedStatement.getBoundSql(args);
         //获取sql
         String format = getSql(mappedStatement.getConfiguration(), boundSql);
+        //查询缓存
+        Object result = cacheService.getBySqlKey(format, null,executor);
 
-        Object result = cacheService.getBySqlKey(format, null);
-        //todo 查询缓存
         if (result == null) {
             result = invocation.proceed();
             if (result != null) {
@@ -112,12 +82,8 @@ public class QueryCacheInterceptor extends BaseInterceptor {
     }
 
 
-
     @Override
     public Object plugin(Object target) {
         return Plugin.wrap(target, this);
     }
-
-
-
 }

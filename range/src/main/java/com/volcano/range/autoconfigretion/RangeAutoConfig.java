@@ -6,16 +6,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.InterceptorRegistration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import com.volcano.range.autoconfigretion.anno.EnableRangeFilter;
 import com.volcano.range.filter.AbstructRangeFilter;
 import com.volcano.range.filter.MysqlFilter;
-import com.volcano.range.filter.OrganizationRangeFilter;
 import com.volcano.range.filter.RangeFilter;
 import com.volcano.range.mapping.ITableMapping;
-import com.volcano.range.mapping.OrganizationRangeTableMapping;
 import com.volcano.range.mvc.RangeMVCInterceptor;
 import com.volcano.range.mybatis.RangeInterceptor;
 
@@ -31,30 +28,16 @@ public class RangeAutoConfig implements WebMvcConfigurer{
 
 
     @Bean
+    @SuppressWarnings("unchecked")
     public Object getRangeInterceptor(SqlSessionFactory sqlSessionFactory, RangeInterceptor interceptor) {
         sqlSessionFactory.getConfiguration().addInterceptor(interceptor);
         return "rangeInterceptor";
     }
 
-    @Bean
-    public ITableMapping initOrgRangeTableMapping(){
-        return new OrganizationRangeTableMapping();
-    }
-
-    @ConditionalOnMissingBean(RangeFilter.class)
-    @Bean
-    public RangeFilter initOrgRangeFilter(ITableMapping mapping){
-        RangeFilter filter=new OrganizationRangeFilter();
-        ((AbstructRangeFilter)filter).setMapping(mapping);
-        return filter;
-    }
-
 
     @Bean
-    public MysqlFilter initMysqlFilter(RangeFilter rangeFilter){
+    public MysqlFilter initMysqlFilter(){
         MysqlFilter mysqlFilter=new MysqlFilter();
-        mysqlFilter.addFilter(rangeFilter);
-        //在此添加数据隔离过滤规则
         return mysqlFilter;
     }
 

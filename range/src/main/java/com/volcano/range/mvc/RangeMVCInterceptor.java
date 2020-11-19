@@ -1,11 +1,13 @@
 package com.volcano.range.mvc;
 
+import com.volcano.range.dto.IRangeData;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.ModelAndView;
-import com.volcano.range.dto.RangeData;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 数据范围mvc拦截器
@@ -13,6 +15,12 @@ import javax.servlet.http.HttpServletResponse;
 public class RangeMVCInterceptor implements HandlerInterceptor {
 
 
+    private List<IRangeData> rangeDatas=new ArrayList<>();
+
+
+    public void addRangeData(IRangeData rangeData){
+        rangeDatas.add(rangeData);
+    }
     /**
      * 在请求处理之前进行调用（Controller方法调用之前）
      */
@@ -20,7 +28,7 @@ public class RangeMVCInterceptor implements HandlerInterceptor {
 
         //在此收集用户的范围数据，通过
         //RangeData.set(...);
-
+        rangeDatas.forEach(x->x.fillRangeData());
         return true;
     }
 
@@ -37,7 +45,7 @@ public class RangeMVCInterceptor implements HandlerInterceptor {
      */
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
-        RangeData.removeOrgIds();
+        rangeDatas.forEach(x->x.remove());
     }
 
 }
