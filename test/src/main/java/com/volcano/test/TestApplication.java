@@ -8,8 +8,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ComponentScan;
 
 @SpringBootApplication
-@EnableCache
-@EnableRangeFilter
+//@EnableCache
+//@EnableRangeFilter
 @ComponentScan(basePackages = {"com.volcano.redission"})
 public class TestApplication {
 
