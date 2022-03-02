@@ -1,18 +1,17 @@
 package com.volcano.range.autoconfigretion;
 
 import org.apache.ibatis.session.SqlSessionFactory;
+import org.hibernate.annotations.JoinColumnsOrFormulas;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.core.annotation.Order;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import com.volcano.range.autoconfigretion.anno.EnableRangeFilter;
-import com.volcano.range.filter.AbstructRangeFilter;
 import com.volcano.range.filter.MysqlFilter;
-import com.volcano.range.filter.RangeFilter;
-import com.volcano.range.mapping.ITableMapping;
 import com.volcano.range.mvc.RangeMVCInterceptor;
 import com.volcano.range.mybatis.RangeInterceptor;
 
@@ -21,18 +20,10 @@ import com.volcano.range.mybatis.RangeInterceptor;
  * @version 1.0
  * @date 2020/9/23 18:58
  */
+@Order(900)
+@Lazy
 @Configuration
-@ComponentScan(basePackages = {"com.volcano.range"})
-@ConditionalOnClass({EnableRangeFilter.class})
 public class RangeAutoConfig implements WebMvcConfigurer{
-
-
-    @Bean
-    @SuppressWarnings("unchecked")
-    public Object getRangeInterceptor(SqlSessionFactory sqlSessionFactory, RangeInterceptor interceptor) {
-        sqlSessionFactory.getConfiguration().addInterceptor(interceptor);
-        return "rangeInterceptor";
-    }
 
 
     @Bean
@@ -43,12 +34,15 @@ public class RangeAutoConfig implements WebMvcConfigurer{
 
 
     @Bean
-    public RangeInterceptor initRangeInterceptor(MysqlFilter mysqlFilter){
-        return new RangeInterceptor(mysqlFilter);
+    public RangeInterceptor initRangeInterceptor(){
+        RangeInterceptor rangeInterceptor = new RangeInterceptor(initMysqlFilter());
+        rangeInterceptor.setSort(-1);//最先执行
+        return rangeInterceptor;
     }
 
 
     @Bean
+    @Order(Integer.MAX_VALUE)
     public RangeMVCInterceptor rangeMVCInterceptor(){
         return new RangeMVCInterceptor();
     }
@@ -56,6 +50,5 @@ public class RangeAutoConfig implements WebMvcConfigurer{
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(rangeMVCInterceptor());
-
     }
 }

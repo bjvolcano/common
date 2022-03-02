@@ -1,37 +1,29 @@
 package com.volcano.range.mybatis;
+import java.sql.SQLException;
+import java.util.Properties;
 
 import com.volcano.mybatis.BaseInterceptor;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.ibatis.executor.statement.StatementHandler;
+import com.volcano.range.filter.MysqlFilter;
+import org.apache.ibatis.executor.Executor;
 import org.apache.ibatis.mapping.BoundSql;
 import org.apache.ibatis.mapping.MappedStatement;
 import org.apache.ibatis.mapping.SqlCommandType;
-import org.apache.ibatis.mapping.StatementType;
+import org.apache.ibatis.mapping.SqlSource;
+import org.apache.ibatis.plugin.Interceptor;
 import org.apache.ibatis.plugin.Intercepts;
 import org.apache.ibatis.plugin.Invocation;
 import org.apache.ibatis.plugin.Plugin;
 import org.apache.ibatis.plugin.Signature;
+import org.apache.ibatis.reflection.DefaultReflectorFactory;
 import org.apache.ibatis.reflection.MetaObject;
-import org.apache.ibatis.reflection.SystemMetaObject;
-import com.volcano.range.filter.MysqlFilter;
+import org.apache.ibatis.reflection.factory.DefaultObjectFactory;
+import org.apache.ibatis.reflection.wrapper.DefaultObjectWrapperFactory;
+import org.apache.ibatis.session.ResultHandler;
+import org.apache.ibatis.session.RowBounds;
+import org.springframework.util.StringUtils;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Proxy;
-import java.sql.Connection;
-import java.util.Properties;
-
-
-@Slf4j
-/**
- * 后期可以处理成自动装配
- */
-@Intercepts({
-        @Signature(type = StatementHandler.class, method = "prepare", args = {Connection.class, Integer.class}),
-        //@Signature(type = StatementHandler.class, method = "query", args = {MappedStatement.class, Object.class, RowBounds.class, ResultHandler.class,
-        //        CacheKey.class, BoundSql.class}),
-        //@Signature(type = StatementHandler.class, method = "update", args = {Statement.class}),
-        //@Signature(type = StatementHandler.class, method = "batch", args = {Statement.class})
-})
+@Intercepts(@Signature(type = Executor.class, method = "query",
+        args = {MappedStatement.class, Object.class, RowBounds.class, ResultHandler.class}))
 public class RangeInterceptor extends BaseInterceptor {
 
     protected MysqlFilter mysqlFilter;
@@ -43,55 +35,101 @@ public class RangeInterceptor extends BaseInterceptor {
         this.mysqlFilter=mysqlFilter;
     }
     @Override
-    public Object intercept(Invocation invocation) throws Throwable  {
-//        StatementHandler statementHandler = realTarget(invocation.getTarget());
-        StatementHandler statementHandler = realTarget(invocation.getTarget());
-        MetaObject metaObject = SystemMetaObject.forObject(statementHandler);
-
-        // 先判断是不是SELECT操作  (2019-04-10 00:37:31 跳过存储过程)
-        MappedStatement mappedStatement = (MappedStatement) metaObject.getValue("delegate.mappedStatement");
-        if (SqlCommandType.SELECT != mappedStatement.getSqlCommandType()
-                || StatementType.CALLABLE == mappedStatement.getStatementType()) {
+    public Object intercept(Invocation invocation) throws Throwable {
+        // 获取sql
+        String sql = getSqlByInvocation(invocation);
+        if (StringUtils.isEmpty(sql)) {
             return invocation.proceed();
         }
+        // sql交由处理类处理  对sql语句进行处理  此处是范例  不做任何处理
+        String sql2Reset = sql;
+ 
+        // 包装sql后，重置到invocation中
+        resetSql2Invocation(invocation, sql2Reset);
+ 
+        // 返回，继续执行
+        return invocation.proceed();
+    }
+ 
+    @Override
+    public Object plugin(Object obj) {
+        return Plugin.wrap(obj, this);
+    }
+ 
+    @Override
+    public void setProperties(Properties arg0) {
+        // doSomething
+    }
+ 
+    /**
+     * 获取sql语句
+     * @param invocation
+     * @return
+     */
+    private String getSqlByInvocation(Invocation invocation) {
+        final Object[] args = invocation.getArgs();
+        MappedStatement ms = (MappedStatement) args[0];
+        Object parameterObject = args[1];
+        BoundSql boundSql = ms.getBoundSql(parameterObject);
+        return boundSql.getSql();
+    }
+ 
+    /**
+     * 包装sql后，重置到invocation中
+     * @param invocation
+     * @param sql
+     * @throws SQLException
+     */
+    private void resetSql2Invocation(Invocation invocation, String sql) throws SQLException {
+        final Object[] args = invocation.getArgs();
+        MappedStatement statement = (MappedStatement) args[0];
+        Object parameterObject = args[1];
+        BoundSql boundSql = statement.getBoundSql(parameterObject);
+        MappedStatement newStatement = newMappedStatement(statement, new BoundSqlSqlSource(boundSql));
+        MetaObject msObject =  MetaObject.forObject(newStatement, new DefaultObjectFactory(), new DefaultObjectWrapperFactory(),new DefaultReflectorFactory());
 
-        // 针对定义了rowBounds，做为mapper接口方法的参数
-        BoundSql boundSql = (BoundSql) metaObject.getValue("delegate.boundSql");
-        Object paramObj = boundSql.getParameterObject();
-        String sql = boundSql.getSql();
-        sql = sql.toLowerCase().replaceAll("[\\s]+", " ");
         String filterSql = mysqlFilter.filter(sql);
-        log.info("new sql：{}",filterSql);
-        Field field = boundSql.getClass().getDeclaredField("sql");
-        field.setAccessible(true);
-        field.set(boundSql, filterSql);
 
-        Object result=invocation.proceed();
-
-        field.set(boundSql, sql);
-        metaObject.setValue("delegate.boundSql",boundSql);
-
-        return result;
+        msObject.setValue("sqlSource.boundSql.sql", filterSql);
+        args[0] = newStatement;
     }
-
-    @Override
-    public Object plugin(Object target) {
-        if (target instanceof StatementHandler) {
-            return Plugin.wrap(target, this);
+ 
+    private MappedStatement newMappedStatement(MappedStatement ms, SqlSource newSqlSource) {
+        MappedStatement.Builder builder =
+                new MappedStatement.Builder(ms.getConfiguration(), ms.getId(), newSqlSource, ms.getSqlCommandType());
+        builder.resource(ms.getResource());
+        builder.fetchSize(ms.getFetchSize());
+        builder.statementType(ms.getStatementType());
+        builder.keyGenerator(ms.getKeyGenerator());
+        if (ms.getKeyProperties() != null && ms.getKeyProperties().length != 0) {
+            StringBuilder keyProperties = new StringBuilder();
+            for (String keyProperty : ms.getKeyProperties()) {
+                keyProperties.append(keyProperty).append(",");
+            }
+            keyProperties.delete(keyProperties.length() - 1, keyProperties.length());
+            builder.keyProperty(keyProperties.toString());
         }
-        return target;
+        builder.timeout(ms.getTimeout());
+        builder.parameterMap(ms.getParameterMap());
+        builder.resultMaps(ms.getResultMaps());
+        builder.resultSetType(ms.getResultSetType());
+        builder.cache(ms.getCache());
+        builder.flushCacheRequired(ms.isFlushCacheRequired());
+        builder.useCache(ms.isUseCache());
+ 
+        return builder.build();
     }
+ 
 
-    @Override
-    public void setProperties(Properties properties) {
-
-    }
-
-    public static <T> T realTarget(Object target) {
-        if (Proxy.isProxyClass(target.getClass())) {
-            MetaObject metaObject = SystemMetaObject.forObject(target);
-            return realTarget(metaObject.getValue("h.target"));
+//    定义一个内部辅助类，作用是包装sq
+    class BoundSqlSqlSource implements SqlSource {
+        private BoundSql boundSql;
+        public BoundSqlSqlSource(BoundSql boundSql) {
+            this.boundSql = boundSql;
         }
-        return (T) target;
+        @Override
+        public BoundSql getBoundSql(Object parameterObject) {
+            return boundSql;
+        }
     }
 }

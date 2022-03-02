@@ -1,12 +1,10 @@
 package com.volcano.mybatis;
 
 import com.alibaba.druid.sql.SQLUtils;
-import com.baomidou.mybatisplus.core.metadata.IPage;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.ibatis.mapping.BoundSql;
-import org.apache.ibatis.mapping.ParameterMapping;
-import org.apache.ibatis.mapping.ParameterMode;
+import org.apache.ibatis.mapping.*;
 import org.apache.ibatis.plugin.Interceptor;
+import org.apache.ibatis.plugin.Invocation;
 import org.apache.ibatis.plugin.Plugin;
 import org.apache.ibatis.reflection.MetaObject;
 import org.apache.ibatis.reflection.SystemMetaObject;
@@ -15,8 +13,9 @@ import org.apache.ibatis.type.TypeHandlerRegistry;
 import org.springframework.util.CollectionUtils;
 
 import java.lang.reflect.Proxy;
-import java.text.DateFormat;
+import java.sql.SQLException;
 import java.util.*;
+import java.util.List;
 import java.util.regex.Matcher;
 
 /**
@@ -25,7 +24,23 @@ import java.util.regex.Matcher;
  * @date 2020/10/30 11:05
  */
 @Slf4j
-public abstract class BaseInterceptor implements Interceptor   {
+public abstract class BaseInterceptor implements Interceptor,Comparable<BaseInterceptor> {
+
+    //优先级 越低排越前
+    protected Integer sort=0;
+
+    public void setSort(Integer sort){
+        this.sort=sort;
+    }
+
+    public Integer getSort(){
+        return this.sort;
+    }
+
+    @Override
+    public int compareTo(BaseInterceptor o){
+        return this.sort.compareTo(o.getSort());
+    }
 
     @Override
     public Object plugin(Object target) {
@@ -47,10 +62,10 @@ public abstract class BaseInterceptor implements Interceptor   {
 
 
     //see org.apache.ibatis.scripting.defaults.DefaultParameterHandler.setParameters
-    public Collection<Object> getParameters(Configuration configuration, BoundSql boundSql,Object parameterObject){
+    public Collection<Object> getParameters(Configuration configuration, BoundSql boundSql, Object parameterObject) {
         TypeHandlerRegistry typeHandlerRegistry = configuration.getTypeHandlerRegistry();
         List<ParameterMapping> parameterMappings = boundSql.getParameterMappings();
-        Collection<Object> params=new ArrayList<>();
+        Collection<Object> params = new ArrayList<>();
         if (parameterMappings != null) {
             for (int i = 0; i < parameterMappings.size(); i++) {
                 ParameterMapping parameterMapping = parameterMappings.get(i);
@@ -75,41 +90,13 @@ public abstract class BaseInterceptor implements Interceptor   {
     }
 
     /**
-     * 如果参数是String，则添加单引号， 如果是日期，则转换为时间格式器并加单引号；
-     * 对参数是null和不是null的情况作了处理<br>
-     *
-     * @param obj
-     * @return
-     */
-    private String getParameterValue(Object obj) {
-        String value = null;
-        if (obj instanceof String) {
-            value = "'" + obj.toString() + "'";
-        } else if (obj instanceof Date) {
-            DateFormat formatter = DateFormat.getDateTimeInstance(DateFormat.DEFAULT, DateFormat.DEFAULT, Locale.CHINA);
-            value = "'" + formatter.format(new Date()) + "'";
-        }/*else if(obj instanceof Collection || obj.class.isArray()){
-            value = "'"+String.join("','")+"'";
-        }*/else {
-            if (obj != null) {
-                value = obj.toString();
-            } else {
-                value = "null";
-            }
-
-        }
-        return value;
-    }
-
-
-
-    /**
      * 进行？的替换
+     *
      * @param configuration
      * @param boundSql
      * @return
      */
-    public String getSql(Configuration configuration, BoundSql boundSql) {
+    public String getSql(Configuration configuration, BoundSql boundSql) throws SQLException {
         // 获取参数
         Object parameterObject = boundSql.getParameterObject();
         List<ParameterMapping> parameterMappings = boundSql
@@ -119,7 +106,7 @@ public abstract class BaseInterceptor implements Interceptor   {
 //        String replace="like \"%\" *?";
 //        System.out.println(replace);
 //        sql = sql.replaceAll(replace, "concat(concat('%',?),'%')");
-        if (!CollectionUtils.isEmpty(parameterMappings) && parameterObject != null) {
+        if (!CollectionUtils.isEmpty(parameterMappings)) {
             TypeHandlerRegistry typeHandlerRegistry = configuration.getTypeHandlerRegistry();
             for (ParameterMapping parameterMapping : parameterMappings) {
                 String propertyName = parameterMapping.getProperty();
@@ -134,30 +121,29 @@ public abstract class BaseInterceptor implements Interceptor   {
                     MetaObject metaObject = configuration.newMetaObject(parameterObject);
                     value = metaObject.getValue(propertyName);
                 }
-                sql = sql.replaceFirst("\\?", Matcher.quoteReplacement(getParameterValue(value)));
+                sql = sql.replaceFirst("\\?", Matcher.quoteReplacement(MybatisParamsUtil.getParameterValue(value)));
             }
-
-            sql=dealPageSql(sql,parameterObject);
         }
         return sql;
     }
 
-
-    private String dealPageSql(String sql,Object parameterObject){
-        IPage<?> page = null;
-        if (parameterObject instanceof IPage) {
-            page = (IPage<?>) parameterObject;
-        } else if (parameterObject instanceof Map) {
-            for (Object arg : ((Map<?, ?>) parameterObject).values()) {
-                if (arg instanceof IPage) {
-                    page = (IPage<?>) arg;
-                    break;
-                }
-            }
+    private String getOperateType(Invocation invocation) {
+        final Object[] args = invocation.getArgs();
+        MappedStatement ms = (MappedStatement) args[0];
+        SqlCommandType commondType = ms.getSqlCommandType();
+        if (commondType.compareTo(SqlCommandType.SELECT) == 0) {
+            return "select";
         }
-        if(page!=null) {
-            sql += " limit " + page.offset() + "," + page.getSize();
+        if (commondType.compareTo(SqlCommandType.INSERT) == 0) {
+            return "insert";
         }
-        return sql;
+        if (commondType.compareTo(SqlCommandType.UPDATE) == 0) {
+            return "update";
+        }
+        if (commondType.compareTo(SqlCommandType.DELETE) == 0) {
+            return "delete";
+        }
+        return null;
     }
+
 }

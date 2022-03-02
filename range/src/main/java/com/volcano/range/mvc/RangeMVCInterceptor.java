@@ -1,7 +1,10 @@
 package com.volcano.range.mvc;
 
+import com.volcano.mvc.BaseMVCInterceptor;
+import com.volcano.range.dto.AbstractRangeData;
 import com.volcano.range.dto.IRangeData;
-import org.springframework.web.servlet.HandlerInterceptor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.annotation.Order;
 import org.springframework.web.servlet.ModelAndView;
 
 import javax.servlet.http.HttpServletRequest;
@@ -12,23 +15,30 @@ import java.util.List;
 /**
  * 数据范围mvc拦截器
  */
-public class RangeMVCInterceptor implements HandlerInterceptor {
+@Order(Integer.MAX_VALUE)
+@Slf4j
+public class RangeMVCInterceptor extends BaseMVCInterceptor {
 
 
-    private List<IRangeData> rangeDatas=new ArrayList<>();
+    private List<IRangeData> rangeDates =new ArrayList<>();
 
 
-    public void addRangeData(IRangeData rangeData){
-        rangeDatas.add(rangeData);
+    public void addRangeData(AbstractRangeData rangeData){
+        rangeDates.add(rangeData);
     }
     /**
      * 在请求处理之前进行调用（Controller方法调用之前）
      */
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)  {
 
+        if(request.getMethod().equals("OPTIONS")) {
+            return true;
+        }
         //在此收集用户的范围数据，通过
+        log.debug("收集用户的范围数据");
         //RangeData.set(...);
-        rangeDatas.forEach(x->x.fillRangeData());
+        rangeDates.forEach(x->x.fillRangeData());
         return true;
     }
 
@@ -45,7 +55,8 @@ public class RangeMVCInterceptor implements HandlerInterceptor {
      */
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
-        rangeDatas.forEach(x->x.remove());
+        log.debug("清理 rangefilter 数据");
+        rangeDates.forEach(x->x.remove());
     }
 
 }

@@ -17,6 +17,12 @@ import java.util.Objects;
 public class SqlParams {
     private String sql;
 
+    private String key;
+
+    public SqlParams(String sql){
+        this.sql=sql;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

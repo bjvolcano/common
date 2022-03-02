@@ -1,7 +1,9 @@
 package com.volcano.range.filter;
 
 import com.alibaba.druid.sql.SQLUtils;
+import com.alibaba.druid.sql.ast.SQLDbTypedObject;
 import com.alibaba.druid.sql.ast.SQLExpr;
+import com.alibaba.druid.sql.ast.SQLObject;
 import com.alibaba.druid.sql.ast.SQLStatement;
 import com.alibaba.druid.sql.ast.expr.*;
 import com.alibaba.druid.sql.ast.statement.*;
@@ -20,7 +22,6 @@ import com.volcano.range.mapping.Mapping;
 import com.volcano.range.mapping.SourceFromInfo;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -28,7 +29,6 @@ import java.util.Optional;
  * druidDataSource 拦截器，拦截sql,添加租户ID条件
  *
  * @author wuya
- *
  */
 @Slf4j
 public class MysqlFilter {
@@ -36,55 +36,57 @@ public class MysqlFilter {
     private static final String MYSQL_STRING = "mysql";
 
 
-    private List<RangeFilter> filters=new ArrayList<>();
+    private List<IRangeFilter> filters = new ArrayList<>();
 
-    public void addFilter(RangeFilter filter){
+    public void addFilter(IRangeFilter filter) {
         filters.add(filter);
     }
 
 
-    public void setFilters(List<RangeFilter> filters){
-        this.filters=filters;
+    public void setFilters(List<IRangeFilter> filters) {
+        this.filters = filters;
     }
-    public void addAllFilters(List<RangeFilter> filters){
+
+    public void addAllFilters(List<IRangeFilter> filters) {
         this.filters.addAll(filters);
     }
 
-    public String filter(String sql){
-        if(CollectionUtils.isEmpty(filters)) {
+    public String filter(String sql) {
+        if (CollectionUtils.isEmpty(filters)) {
             log.debug("filter is empty,sql not filter!");
             return sql;
         }
-        String oldSql=sql;
+        String oldSql = sql;
         try {
             // 解析sql
             MySqlStatementParser parser = new MySqlStatementParser(sql);
             SQLStatement stmt = parser.parseStatement();
             if (stmt instanceof SQLSelectStatement) {
-                SQLSelect sqlSelect = ((SQLSelectStatement)stmt).getSelect();
+                SQLSelect sqlSelect = ((SQLSelectStatement) stmt).getSelect();
                 if (sqlSelect.getQuery() instanceof SQLUnionQuery) {
-                    SQLUnionQuery unionQuery = (SQLUnionQuery)sqlSelect.getQuery();
+                    SQLUnionQuery unionQuery = (SQLUnionQuery) sqlSelect.getQuery();
                     sql = doUnionSelect(unionQuery);
                 } else {
-                    sql = doSelectSql(sql, (MySqlSelectQueryBlock)sqlSelect.getQueryBlock());
+                    sql = doSelectSql(sql, (MySqlSelectQueryBlock) sqlSelect.getQueryBlock());
                 }
             } else if (stmt instanceof MySqlUpdateStatement) {
-                MySqlUpdateStatement update = (MySqlUpdateStatement)stmt;
+                MySqlUpdateStatement update = (MySqlUpdateStatement) stmt;
                 sql = doUpdateSql(sql, update);
             } else if (stmt instanceof MySqlDeleteStatement) {
-                MySqlDeleteStatement delete = (MySqlDeleteStatement)stmt;
+                MySqlDeleteStatement delete = (MySqlDeleteStatement) stmt;
                 sql = doDeleteSql(sql, delete);
             }
         } catch (Exception e) {
-            log.error("deal self filter sql error {}\n{}",sql, e);
-            sql=oldSql;
+            log.error("deal self filter sql error {}\n{}", sql, e);
+            sql = oldSql;
         }
-        log.info("new sql = {}", sql);
+        log.debug("new sql = {}", sql);
         return sql;
     }
 
     /**
      * 处理union查询语句
+     *
      * @param unionQuery 语句
      * @return 处理结果
      */
@@ -92,14 +94,14 @@ public class MysqlFilter {
         SQLSelectQuery left = unionQuery.getLeft();
         SQLSelectQuery right = unionQuery.getRight();
         if (left instanceof SQLUnionQuery) {
-            doUnionSelect((SQLUnionQuery)left);
+            doUnionSelect((SQLUnionQuery) left);
         } else {
-            doSelectSql(String.valueOf(left), (MySqlSelectQueryBlock)left);
+            doSelectSql(String.valueOf(left), (MySqlSelectQueryBlock) left);
         }
         if (right instanceof SQLUnionQuery) {
-            doUnionSelect((SQLUnionQuery)right);
+            doUnionSelect((SQLUnionQuery) right);
         } else {
-            doSelectSql(String.valueOf(right), (MySqlSelectQueryBlock)right);
+            doSelectSql(String.valueOf(right), (MySqlSelectQueryBlock) right);
         }
         return String.valueOf(unionQuery);
     }
@@ -117,11 +119,11 @@ public class MysqlFilter {
         // 遍历查询的字段，如果查询字段中有子查询 则加上租户ID查询条件
         selectList.forEach(e -> {
             if (e.getExpr() instanceof SQLQueryExpr) {
-                SQLQueryExpr expr = (SQLQueryExpr)e.getExpr();
-                String newFieldSql = doSelectSql(String.valueOf(expr), (MySqlSelectQueryBlock)expr.getSubQuery().getQueryBlock());
+                SQLQueryExpr expr = (SQLQueryExpr) e.getExpr();
+                String newFieldSql = doSelectSql(String.valueOf(expr), (MySqlSelectQueryBlock) expr.getSubQuery().getQueryBlock());
                 SQLExpr subSelect = SQLUtils.toMySqlExpr(newFieldSql);
                 e.setExpr(subSelect);
-                log.info("sql select field have subQuery = {}", newFieldSql);
+                log.debug("sql select field have subQuery = {}", newFieldSql);
             }
         });
         // 获取所查询的表
@@ -129,16 +131,16 @@ public class MysqlFilter {
         // 如果from语句是子查询
         if (from instanceof SQLSubqueryTableSource) {
             String fromString = String.valueOf(from);
-            SQLSubqueryTableSource subqueryTableSource = (SQLSubqueryTableSource)from;
-            String subQuery = doSelectSql(fromString, (MySqlSelectQueryBlock)subqueryTableSource.getSelect().getQueryBlock());
-            log.info("sql from have subQuery = {}", subQuery);
+            SQLSubqueryTableSource subqueryTableSource = (SQLSubqueryTableSource) from;
+            String subQuery = doSelectSql(fromString, (MySqlSelectQueryBlock) subqueryTableSource.getSelect().getQueryBlock());
+            log.debug("sql from have subQuery = {}", subQuery);
             SQLSelect sqlSelectBySql = getSqlSelectBySql(subQuery);
-            ((SQLSubqueryTableSource)from).setSelect(sqlSelectBySql);
+            ((SQLSubqueryTableSource) from).setSelect(sqlSelectBySql);
             select.setWhere(getNewWhereCondition(select, where, sql, from));
         }
         // 如果from语句是关联查询
         if (from instanceof SQLJoinTableSource) {
-            SQLJoinTableSource joinFrom = (SQLJoinTableSource)from;
+            SQLJoinTableSource joinFrom = (SQLJoinTableSource) from;
             SQLTableSource left = joinFrom.getLeft();
             SQLTableSource right = joinFrom.getRight();
             setTableSourceNewSql(left);
@@ -147,7 +149,8 @@ public class MysqlFilter {
         select.setWhere(getNewWhereCondition(select, where, sql, from));
         try {
             return select.toString();
-        }catch (Exception e){
+        } catch (Exception e) {
+            e.printStackTrace();
             return sql;
         }
     }
@@ -155,12 +158,12 @@ public class MysqlFilter {
     /**
      * 处理更新语句
      *
-     * @param sql sql语句
+     * @param sql  sql语句
      * @param stmt 解析的语句
      * @return 修改的后的sql
      */
     private String doUpdateSql(String sql, SQLStatement stmt) {
-        MySqlUpdateStatement update = (MySqlUpdateStatement)stmt;
+        MySqlUpdateStatement update = (MySqlUpdateStatement) stmt;
         SQLExpr where = update.getWhere();
         // 拼接where条件
         update.setWhere(getNewWhereCondition(null, where, sql, update.getTableSource()));
@@ -170,12 +173,12 @@ public class MysqlFilter {
     /**
      * 处理delete语句
      *
-     * @param sql sql语句
+     * @param sql  sql语句
      * @param stmt 解析的语句
      * @return 修改的后的sql
      */
     private String doDeleteSql(String sql, SQLStatement stmt) {
-        MySqlDeleteStatement delete = (MySqlDeleteStatement)stmt;
+        MySqlDeleteStatement delete = (MySqlDeleteStatement) stmt;
         SQLExpr where = delete.getWhere();
         // 拼接where条件
         delete.setWhere(getNewWhereCondition(null, where, sql, delete.getTableSource()));
@@ -192,13 +195,13 @@ public class MysqlFilter {
                                          SQLTableSource tableSource) {
         // 如果where中包含子查询
         if (where instanceof SQLInSubQueryExpr) {
-            SQLSelect subSelect = ((SQLInSubQueryExpr)where).subQuery;
+            SQLSelect subSelect = ((SQLInSubQueryExpr) where).subQuery;
             // 获取子查询语句
             String subQuery = String.valueOf(subSelect);
             // 处理子查询语句
-            String newSubQuery = doSelectSql(subQuery, (MySqlSelectQueryBlock)subSelect.getQueryBlock());
+            String newSubQuery = doSelectSql(subQuery, (MySqlSelectQueryBlock) subSelect.getQueryBlock());
             SQLSelect sqlSelectBySql = getSqlSelectBySql(newSubQuery);
-            ((SQLInSubQueryExpr)where).setSubQuery(sqlSelectBySql);
+            ((SQLInSubQueryExpr) where).setSubQuery(sqlSelectBySql);
         }
         SQLBinaryOpExpr binaryOpExprWhere = new SQLBinaryOpExpr(MYSQL_STRING);
         List<SourceFromInfo> tableNameList = new ArrayList();
@@ -207,8 +210,8 @@ public class MysqlFilter {
             return where;
         }
         // 根据多个表名获取拼接条件
-        SQLBinaryOpExpr conditionByTableName = getWhereConditionByTableList(tableNameList);
-        log.info("get tableInfos = {}", JSON.toJSONString(tableNameList));
+        SQLExpr conditionByTableName =  getWhereConditionByTableList(tableNameList);
+        log.debug("get tableInfos = {}", JSON.toJSONString(tableNameList));
         // 没有需要添加的条件，直接返回
         if (ObjectUtils.isEmpty(conditionByTableName)) {
             return where;
@@ -221,7 +224,7 @@ public class MysqlFilter {
         binaryOpExprWhere.setOperator(SQLBinaryOperator.BooleanAnd);
         binaryOpExprWhere.setRight(where.clone());
         if (isFilterAndOrCondition(where)) {
-            log.info("the sql contains or condition by tenant_id, sql = {}", sql);
+            log.debug("the sql contains or condition by tenant_id, sql = {}", sql);
         }
         return binaryOpExprWhere;
     }
@@ -232,60 +235,78 @@ public class MysqlFilter {
      * @param tableNameList 表名列表
      * @return 拼接后的条件
      */
-    private SQLBinaryOpExpr getWhereConditionByTableList(List<SourceFromInfo> tableNameList) {
+    private SQLExpr getWhereConditionByTableList( List<SourceFromInfo> tableNameList) {
         // 先过滤掉不需要添加条件的
         //tableNameList =
         //        tableNameList.stream().filter(fromInfo -> fromInfo.isNeedAddCondition()).collect(Collectors.toList());
         if (CollectionUtils.isEmpty(tableNameList)) {
             return null;
         }
-        SQLBinaryOpExpr allCondition = new SQLBinaryOpExpr(MYSQL_STRING);
+        MySqlSelectQueryBlock selectQueryBlock=new MySqlSelectQueryBlock();
 
         for (int i = 0; i < tableNameList.size(); i++) {
-            for(RangeFilter filter : filters) {
+            for (IRangeFilter filter : filters) {
                 SourceFromInfo tableNameInfo = tableNameList.get(i);
 
                 SQLExpr newWhere = filter.getFilterCondition(tableNameInfo);
 
-                if(newWhere==null)
+                if (newWhere == null)
                     continue;
+                whereAdd(selectQueryBlock,newWhere);
 
-                // 如果是最后一个且不是第一个则将当期table条件设置为右侧条件
-                if (i > 0 && i == tableNameList.size() - 1) {
-                    allCondition.setOperator(SQLBinaryOperator.BooleanAnd);
-                    allCondition.setRight(newWhere);
-                    break;
-                }
-                // 如果是只有一个table 则直接设置最终条件为当期table条件
-                if (tableNameList.size() == 1) {
-                    if(newWhere instanceof SQLInListExpr) {
-                        if (allCondition.getLeft() == null) {
-                            allCondition.setLeft(newWhere);
-                        }else {
-                            SQLBinaryOpExpr condition = getAndCondition(allCondition.getLeft(), newWhere);
-                            allCondition.setLeft(condition);
-                        }
-                    }else{
-                        allCondition = (SQLBinaryOpExpr) newWhere;
-                    }
-
-                    break;
-                }
-                if (allCondition.getLeft() == null) {
-                    allCondition.setLeft(newWhere);
-                } else {
-                    SQLBinaryOpExpr condition = getAndCondition(allCondition.getLeft(), newWhere);
-                    allCondition.setLeft(condition);
-                }
             }
         }
-        return allCondition;
+        return selectQueryBlock.getWhere();
+    }
+
+    public void whereAdd(SQLSelectQueryBlock sqlSelectQueryBlock, SQLExpr sqlExpr) {
+        if (sqlSelectQueryBlock.getWhere() != null) {
+            SQLExpr sqlExprWhere = sqlSelectQueryBlock.getWhere();
+            List<SQLObject> sqlList = sqlExprWhere.getChildren();
+            List<SQLObject> sqlObjectList = sqlExpr.getChildren();
+            if (sqlList != null && sqlList.size() > 1) {
+                // 原有的where 如果是or 则不拆
+                if (sqlExprWhere instanceof SQLBinaryOpExpr) {
+                    if (!((SQLBinaryOpExpr) sqlExprWhere).getOperator().equals(SQLBinaryOperator.BooleanOr)) {
+                        // 原有where 和需要拼接的where
+                        if (sqlObjectList != null && sqlObjectList.size() > 1) {
+                            if (!((SQLBinaryOpExpr) sqlExpr).getOperator().equals(SQLBinaryOperator.BooleanOr)) {
+                                sqlObjectList.forEach(sqlObject -> {
+                                    if (!sqlList.contains(sqlObject)) {
+                                        sqlSelectQueryBlock.addWhere((SQLExpr) sqlObject);
+                                    }
+                                });
+                            } else {
+                                if (!sqlList.contains(sqlExpr)) {
+                                    sqlSelectQueryBlock.addWhere(sqlExpr);
+                                }
+                            }
+                        } else {
+                            if (!sqlList.contains(sqlExpr)) {
+                                sqlSelectQueryBlock.addWhere(sqlExpr);
+                            }
+                        }
+                    } else {
+                        sqlSelectQueryBlock.addWhere(sqlExpr);
+                    }
+                } else if (sqlExprWhere instanceof SQLInSubQueryExpr) {
+                    sqlSelectQueryBlock.addWhere(sqlExpr);
+                } else {
+                    sqlSelectQueryBlock.addWhere(sqlExpr);
+                }
+            } else {
+                sqlSelectQueryBlock.addWhere(sqlExpr);
+            }
+        } else {
+            sqlSelectQueryBlock.addWhere(sqlExpr);
+        }
+
     }
 
     /**
      * 拼接and条件
      *
-     * @param left 左侧条件
+     * @param left  左侧条件
      * @param right 右侧条件
      * @return 拼接后的条件
      */
@@ -318,6 +339,7 @@ public class MysqlFilter {
         //where.setRight(new SQLIntegerExpr(tenantId));
         return where;
     }
+
     /**
      * 根据表信息拼接tenantId 条件
      *
@@ -343,8 +365,8 @@ public class MysqlFilter {
     /**
      * 查询所有的表信息
      *
-     * @param select from语句对应的select语句
-     * @param tableSource from语句
+     * @param select        from语句对应的select语句
+     * @param tableSource   from语句
      * @param tableNameList sql中from语句中所有表信息
      */
     private void getTableNames(MySqlSelectQueryBlock select, SQLTableSource tableSource,
@@ -353,7 +375,7 @@ public class MysqlFilter {
         if (tableSource instanceof SQLSubqueryTableSource) {
             SourceFromInfo fromInfo = new SourceFromInfo();
             fromInfo.setSubQuery(true);
-            SQLSubqueryTableSource subqueryTableSource = (SQLSubqueryTableSource)tableSource;
+            SQLSubqueryTableSource subqueryTableSource = (SQLSubqueryTableSource) tableSource;
             //fromInfo.setTableName(tableSource.ge);
             // 设置别名
             fromInfo.setAlias(subqueryTableSource.getAlias());
@@ -372,17 +394,17 @@ public class MysqlFilter {
         }
         // 连接查询
         if (tableSource instanceof SQLJoinTableSource) {
-            SQLJoinTableSource joinSource = (SQLJoinTableSource)tableSource;
+            SQLJoinTableSource joinSource = (SQLJoinTableSource) tableSource;
             SQLTableSource left = joinSource.getLeft();
             SQLTableSource right = joinSource.getRight();
             // 子查询则递归获取
             if (left instanceof SQLSubqueryTableSource) {
-                getTableNames((MySqlSelectQueryBlock)((SQLSubqueryTableSource)left).getSelect().getQuery(), left,
+                getTableNames((MySqlSelectQueryBlock) ((SQLSubqueryTableSource) left).getSelect().getQuery(), left,
                         tableNameList);
             }
             // 子查询则递归获取
             if (right instanceof SQLSubqueryTableSource) {
-                getTableNames((MySqlSelectQueryBlock)((SQLSubqueryTableSource)right).getSelect().getQuery(), right,
+                getTableNames((MySqlSelectQueryBlock) ((SQLSubqueryTableSource) right).getSelect().getQuery(), right,
                         tableNameList);
             }
             // 连接查询 左边是单表
@@ -412,7 +434,7 @@ public class MysqlFilter {
     /**
      * 如果当前from语句只有单表，则添加到list中
      *
-     * @param tableSource from语句
+     * @param tableSource   from语句
      * @param tableNameList 表信息list
      */
     private void addOnlyTable(SQLTableSource tableSource, List<SourceFromInfo> tableNameList) {
@@ -435,7 +457,7 @@ public class MysqlFilter {
         if (!(where instanceof SQLBinaryOpExpr)) {
             return false;
         }
-        SQLBinaryOpExpr binaryOpExpr = (SQLBinaryOpExpr)where;
+        SQLBinaryOpExpr binaryOpExpr = (SQLBinaryOpExpr) where;
         SQLExpr left = binaryOpExpr.getLeft();
         SQLExpr right = binaryOpExpr.getRight();
         // 是否包含映射表中的字段 为查询条件
@@ -460,7 +482,7 @@ public class MysqlFilter {
         if (!(where instanceof SQLBinaryOpExpr)) {
             return false;
         }
-        SQLBinaryOpExpr binaryOpExpr = (SQLBinaryOpExpr)where;
+        SQLBinaryOpExpr binaryOpExpr = (SQLBinaryOpExpr) where;
         if ((isContainsCondition(binaryOpExpr.getLeft())
                 || isContainsCondition(binaryOpExpr.getRight()))
                 && "BooleanOr".equals(String.valueOf(binaryOpExpr.getOperator()))) {
@@ -478,9 +500,9 @@ public class MysqlFilter {
         if (!(tableSource instanceof SQLSubqueryTableSource)) {
             return;
         }
-        SQLSubqueryTableSource subqueryTableSource = (SQLSubqueryTableSource)tableSource;
+        SQLSubqueryTableSource subqueryTableSource = (SQLSubqueryTableSource) tableSource;
         String leftSubQueryString = String.valueOf(subqueryTableSource.getSelect());
-        String newLeftSubQueryString = doSelectSql(leftSubQueryString, (MySqlSelectQueryBlock)subqueryTableSource.getSelect().getQueryBlock());
+        String newLeftSubQueryString = doSelectSql(leftSubQueryString, (MySqlSelectQueryBlock) subqueryTableSource.getSelect().getQueryBlock());
         SQLSelect sqlselect = getSqlSelectBySql(newLeftSubQueryString);
         subqueryTableSource.setSelect(sqlselect);
     }
@@ -497,7 +519,7 @@ public class MysqlFilter {
         if (CollectionUtils.isEmpty(parseStatementList)) {
             return null;
         }
-        SQLSelectStatement sstmt = (SQLSelectStatement)parseStatementList.get(0);
+        SQLSelectStatement sstmt = (SQLSelectStatement) parseStatementList.get(0);
         SQLSelect sqlselect = sstmt.getSelect();
         return sqlselect;
     }

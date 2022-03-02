@@ -8,7 +8,7 @@ import com.volcano.range.mapping.SourceFromInfo;
  * @version 1.0
  * @date 2020/9/22 14:15
  */
-public interface RangeFilter {
+public interface IRangeFilter {
 
     /**
      * 根据表信息拼接过滤 条件

@@ -15,7 +15,7 @@ import com.volcano.range.mapping.SourceFromInfo;
  * @date 2020/9/23 16:51
  */
 @Data
-public abstract class AbstructRangeFilter implements RangeFilter {
+public abstract class AbstructRangeFilter implements IRangeFilter {
     protected ITableMapping mapping;
     protected ITableMapping exclude;
 
@@ -61,8 +61,7 @@ public abstract class AbstructRangeFilter implements RangeFilter {
             return null;
         for(Mapping map: mapping.getMappings()){
             if(map.getTable().equals(tableNameInfo.getTableName())) {
-                map.setAlias(tableNameInfo.getAlias());
-                return map;
+                return new Mapping(map.getTable(),map.getField(),tableNameInfo.getAlias());
             }
         }
         return null;
