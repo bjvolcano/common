@@ -68,13 +68,13 @@ public class QueryCacheInterceptor extends BaseInterceptor {
                 this.cacheService.hotKeyLock(this.cacheService.getKey());
                 result = this.cacheService.get();
                 if (result != null) {
-                    log.info("缓存失效后再次读取到缓存信息 {}", JSON.toJSONString(result));
-                    Object var8 = result;
-                    return var8;
+                    log.debug("读取缓存成功！");
+                    return result;
                 }
 
                 result = invocation.proceed();
                 if (result != null) {
+                    log.info("缓存失效后再次读取到信息 {}", JSON.toJSONString(result));
                     this.cacheService.put(result, Math.abs(ICacheService.EXPIRE - (long) random.nextInt(120)), TimeUnit.SECONDS);
                 }
             } finally {

@@ -10,6 +10,7 @@ import com.volcano.cache.entity.HotKey;
 import com.volcano.cache.entity.SqlEntity;
 import com.volcano.cache.entity.SqlParams;
 import com.volcano.cache.entity.TransactionInfo;
+
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -289,10 +290,10 @@ public abstract class BaseCacheService implements ICacheService {
 
     @Override
     public void remove() {
-        Map<SqlParams, SqlEntity> entitys = (Map) dealSqls.get();
+        Map<SqlParams, SqlEntity> entitys = dealSqls.get();
         if (!CollectionUtils.isEmpty(entitys)) {
             Date expireAt = new Date();
-            SqlEntity entity = (SqlEntity) entitys.get(key.get());
+            SqlEntity entity = entitys.get(key.get());
             if (entity != null && !entity.isRead()) {
                 Collection<String> tables = entity.getTables();
                 if (!CollectionUtils.isEmpty(tables)) {
@@ -328,7 +329,7 @@ public abstract class BaseCacheService implements ICacheService {
         SqlEntity entity = new SqlEntity();
         entity.setTableHashCode(tablesHashCode);
         entity.setSqlHashCode(sqlHashCode);
-        entity.setTables((Collection) this.getHashTables().get(tablesHashCode));
+        entity.setTables(this.getHashTables().get(tablesHashCode));
         entity.setSql(sql);
         entity.setKey(this.applicationName + ":" + tablesHashCode + ":" + sqlHashCode);
         entity.setParams(argValues);
@@ -363,10 +364,10 @@ public abstract class BaseCacheService implements ICacheService {
     }
 
     private SqlEntity set(SqlEntity entity) {
-        Map<SqlParams, SqlEntity> sqlEntitys = (Map) dealSqls.get();
+        Map<SqlParams, SqlEntity> sqlEntitys = dealSqls.get();
         SqlParams key = new SqlParams(entity.getSql(), entity.getKey());
-        if (!CollectionUtils.isEmpty((Map) sqlEntitys)) {
-            SqlEntity cache = (SqlEntity) ((Map) sqlEntitys).get(key);
+        if (!CollectionUtils.isEmpty(sqlEntitys)) {
+            SqlEntity cache = sqlEntitys.get(key);
             if (cache != null) {
                 entity.setRead(cache.isRead());
             }
@@ -390,12 +391,12 @@ public abstract class BaseCacheService implements ICacheService {
         this.getHashTables().put(tableHash, tables);
         tables.parallelStream().forEach((x) -> {
             RMap<String, Set<Integer>> tableHashs = this.getTableHashs();
-            Set<Integer> hashs = (Set) tableHashs.get(x);
+            Set<Integer> hashs = tableHashs.get(x);
             if (hashs == null) {
                 hashs = new HashSet();
             }
 
-            ((Set) hashs).add(tableHash);
+            hashs.add(tableHash);
             tableHashs.put(x, hashs);
         });
     }
