@@ -14,6 +14,7 @@ import java.lang.reflect.Field;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.plugin.Interceptor;
 import org.apache.ibatis.plugin.InterceptorChain;
 import org.apache.ibatis.session.SqlSessionFactory;
@@ -33,19 +34,21 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import javax.annotation.Resource;
+
 @Order(999)
 @Lazy
 @ComponentScan({"com.volcano.cache", "com.volcano.util"})
 @Configuration
+@Slf4j
 public class CacheAutoConfig implements WebMvcConfigurer, ApplicationListener<ApplicationStartedEvent> {
-    private static final Logger log = LoggerFactory.getLogger(CacheAutoConfig.class);
-    @Autowired
+    @Resource
     RedissonClient redissonClient;
-    @Autowired
+    @Resource
     SpringContextUtil springContextUtil;
-    @Autowired
+    @Resource
     CacheConfig cacheConfig;
-    @Autowired
+    @Resource
     ICacheService cacheService;
 
     @Bean
@@ -93,10 +96,12 @@ public class CacheAutoConfig implements WebMvcConfigurer, ApplicationListener<Ap
         return cacheInterceptor;
     }
 
+    @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(this.cacheInterceptor());
     }
 
+    @Override
     public void onApplicationEvent(ApplicationStartedEvent applicationStartedEvent) {
         try {
             SqlSessionFactory sqlSessionFactory = SpringContextUtil.getBean(SqlSessionFactory.class);

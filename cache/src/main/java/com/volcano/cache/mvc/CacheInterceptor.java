@@ -3,13 +3,9 @@ package com.volcano.cache.mvc;
 import com.volcano.cache.service.ICacheService;
 import com.volcano.mvc.BaseMVCInterceptor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.servlet.ModelAndView;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.swing.*;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * 数据范围mvc拦截器

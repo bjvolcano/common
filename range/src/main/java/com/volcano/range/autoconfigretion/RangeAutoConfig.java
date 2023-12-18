@@ -1,16 +1,11 @@
 package com.volcano.range.autoconfigretion;
 
-import org.apache.ibatis.session.SqlSessionFactory;
-import org.hibernate.annotations.JoinColumnsOrFormulas;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.core.annotation.Order;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-import com.volcano.range.autoconfigretion.anno.EnableRangeFilter;
 import com.volcano.range.filter.MysqlFilter;
 import com.volcano.range.mvc.RangeMVCInterceptor;
 import com.volcano.range.mybatis.RangeInterceptor;

@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
+
 import org.apache.ibatis.executor.Executor;
 import org.apache.ibatis.mapping.BoundSql;
 import org.apache.ibatis.mapping.MappedStatement;
@@ -74,7 +75,7 @@ public class QueryCacheInterceptor extends BaseInterceptor {
 
                 result = invocation.proceed();
                 if (result != null) {
-                    log.info("缓存失效后再次读取到信息 {}", JSON.toJSONString(result));
+                    //log.info("缓存失效后再次读取到信息 {}", JSON.toJSONString(result));
                     this.cacheService.put(result, Math.abs(ICacheService.EXPIRE - (long) random.nextInt(120)), TimeUnit.SECONDS);
                 }
             } finally {

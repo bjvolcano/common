@@ -12,21 +12,26 @@ import java.util.Objects;
  * @date 2020/11/4 11:15
  */
 @Data
-@NoArgsConstructor
 @AllArgsConstructor
 public class SqlParams {
     private String sql;
 
     private String key;
 
-    public SqlParams(String sql){
-        this.sql=sql;
+    public SqlParams(String sql) {
+        this.sql = sql;
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
         SqlParams sqlParams = (SqlParams) o;
         return Objects.equals(sql, sqlParams.sql);
     }

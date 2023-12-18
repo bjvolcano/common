@@ -177,7 +177,7 @@ public abstract class BaseCacheService implements ICacheService {
     }
 
     private boolean readCache() {
-        TransactionInfo tranInfo = (TransactionInfo) transactionInfo.get();
+        TransactionInfo tranInfo = transactionInfo.get();
         boolean readCache = true;
         if (!tranInfo.isAutoCommit() && !tranInfo.isReadOnly() && this.hasWrite()) {
             readCache = false;

@@ -146,4 +146,7 @@ public abstract class BaseInterceptor implements Interceptor,Comparable<BaseInte
         return null;
     }
 
+    public void remove(){
+
+    }
 }

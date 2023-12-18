@@ -19,63 +19,70 @@ public abstract class AbstructRangeFilter implements IRangeFilter {
     protected ITableMapping mapping;
     protected ITableMapping exclude;
 
-    public SQLExpr getFilterCondition(SourceFromInfo tableNameInfo){
-        if(excludeHasTable(tableNameInfo))
-           return null;
+    public SQLExpr getFilterCondition(SourceFromInfo tableNameInfo) {
+        if (excludeHasTable(tableNameInfo)) {
+            return null;
+        }
+
         Mapping map = getMapping(tableNameInfo);
-        if(map!=null) {
+        if (map != null) {
             String filterWhereSql = getFilterWhereSql(map);
-            if(!StringUtils.isEmpty(filterWhereSql)) {
-                SQLExpr sqlExpr = SQLUtils.toMySqlExpr(filterWhereSql);
-                return sqlExpr;
-            }else{
+            if (StringUtils.isEmpty(filterWhereSql)) {
                 return null;
             }
+
+            SQLExpr sqlExpr = SQLUtils.toMySqlExpr(filterWhereSql);
+            return sqlExpr;
         }
+
         return null;
     }
 
     /**
      * 获取实际过滤where 条件
+     *
      * @return
      */
     public abstract String getFilterWhereSql(Mapping tableNameInfo);
 
     /**
      * 检查排除映射
+     *
      * @param tableNameInfo
      * @return
      */
-    private boolean excludeHasTable(SourceFromInfo tableNameInfo){
-        if(exclude==null || CollectionUtils.isEmpty(exclude.getMappings()))
+    private boolean excludeHasTable(SourceFromInfo tableNameInfo) {
+        if (exclude == null || CollectionUtils.isEmpty(exclude.getMappings()))
             return false;
-        for(Mapping mapping : exclude.getMappings()){
-            if(mapping.getTable().equals(tableNameInfo.getTableName()))
+        for (Mapping mapping : exclude.getMappings()) {
+            if (mapping.getTable().equals(tableNameInfo.getTableName()))
                 return true;
         }
         return false;
     }
 
-    private Mapping getMapping(SourceFromInfo tableNameInfo){
-        if(mapping==null || CollectionUtils.isEmpty(mapping.getMappings()))
+    private Mapping getMapping(SourceFromInfo tableNameInfo) {
+        if (mapping == null || CollectionUtils.isEmpty(mapping.getMappings()))
             return null;
-        for(Mapping map: mapping.getMappings()){
-            if(map.getTable().equals(tableNameInfo.getTableName())) {
-                return new Mapping(map.getTable(),map.getField(),tableNameInfo.getAlias());
+        for (Mapping map : mapping.getMappings()) {
+            if (map.getTable().equals(tableNameInfo.getTableName())) {
+                return new Mapping(map.getTable(), map.getField(), tableNameInfo.getAlias());
             }
         }
         return null;
     }
+
     /**
      * 检查过滤映射
+     *
      * @param tableNameInfo
      * @return
      */
-    private boolean mappingHasTable(SourceFromInfo tableNameInfo){
-        if(mapping ==null || CollectionUtils.isEmpty(mapping.getMappings()))
+    private boolean mappingHasTable(SourceFromInfo tableNameInfo) {
+        if (mapping == null || CollectionUtils.isEmpty(mapping.getMappings()))
             return false;
-        for(Mapping mapping : mapping.getMappings()){
-            if(mapping.getTable().equals(tableNameInfo.getTableName()))
+        for (Mapping mapping : mapping.getMappings()) {
+            if (mapping.getTable().equals(tableNameInfo.getTableName()))
                 return true;
         }
         return false;
