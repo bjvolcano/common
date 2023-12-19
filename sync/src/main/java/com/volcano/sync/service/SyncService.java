@@ -9,8 +9,11 @@ import org.springframework.transaction.interceptor.TransactionAspectSupport;
 import org.springframework.util.CollectionUtils;
 
 import javax.annotation.PostConstruct;
+import javax.annotation.Resource;
+import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -22,6 +25,9 @@ public class SyncService implements ISyncService {
     private static final ConcurrentHashMap<TransactionStatus, List<String>> CONN_SQLS = new ConcurrentHashMap();
 
     private static final Set<TransactionStatus> ACTIVE_TRANSACTIONS = new LinkedHashSet<>();
+
+    @Resource
+    DataSource dataSource;
 
     @PostConstruct
     public void init() {
@@ -120,7 +126,17 @@ public class SyncService implements ISyncService {
 
         //todo send sqls to mq
         String json = JSON.toJSONString(sqls);
-        log.info(" sending sqls to mq : {}", json);
+        json = json.replaceAll("'","~~~");
+        try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(true);
+            Statement statement = connection.createStatement();
+            StringBuilder sb = new StringBuilder("INSERT INTO SYNC_SQL_LOG(SQLS,CREATED_AT,DELETED) values('");
+            sb.append(json).append("',sysdate,0)");
+            boolean execute = statement.execute(sb.toString());
+            log.info(" sending sqls to db : {} , execute : {}", json, execute);
+        } catch (SQLException e) {
+            log.error("存储sql异常", e);
+        }
     }
 
     @Override
